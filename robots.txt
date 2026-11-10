@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://suhaibusiness.github.io/lead-refund-tracker/sitemap.xml
