@@ -381,7 +381,7 @@ function viewMaths() {
       <tr class="total"><td>Total</td><td class="num">${s.leads}</td><td class="num">${fmt(s.spend)}</td><td class="num">${s.credited ? fmt(s.credited) : '—'}</td><td class="num">${fmt(s.cpl)}</td><td class="num">${fmt(s.cpq)}</td><td class="num">${fmt(s.cpw)}</td><td class="num">${s.won}</td><td class="num">${fmt(s.value)}</td><td class="num">${x(s.roas)}</td></tr>
       </tbody></table></div></section>`;
   }
-  return html;
+  return html + `<p class="small muted b1m">More of the leads you pay for turn into jobs when each one gets a fast answer. We also make Beyond 1M, which answers your calls and texts and follows up your quotes.</p>`;
 }
 const monthName = (m) => new Date(m + '-01T00:00:00Z').toLocaleDateString('en-US', { month: 'short', year: 'numeric', timeZone: 'UTC' });
 

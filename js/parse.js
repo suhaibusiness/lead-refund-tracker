@@ -149,6 +149,18 @@ function customerFromText(text) {
   return uniq(found).filter((n) => !/^(?:You|Your|We|The|This|A|Hi|Hello|New|Lead|Customer|Potential|Someone|Somebody|Anyone|Homeowner|Caller|Client)\b/.test(n));
 }
 
+// Outcome phrases only: "refunded", "refund (request) was approved/issued", "refund of $27" (not after "request a" or
+// "for a"), "refund amount", and the credit-return wordings platforms use.
+const REFUND_DONE = new RegExp([
+  String.raw`\brefunded\b`,
+  String.raw`\brefund(?:\s+(?:request|claim))?\s+(?:was|has\s+been|is|have\s+been)\s+(?:approved|issued|processed|granted|completed)`,
+  String.raw`(?<!(?:request|for|claim|get|requesting)\s+(?:a|your)\s+)\brefund\s+(?:of|for)\s+(?:AU?\$|US\$|NZ\$|CA\$|\$|£|€)\s?\d`,
+  String.raw`\brefund\s+amount\b`,
+  String.raw`\blead\s+credit\s+(?:approved|issued)`,
+  String.raw`\bcredits?\s+(?:has\s+been|have\s+been|was|were)\s+(?:approved|issued|applied|returned)`,
+  String.raw`\bcredits?\s+returned`,
+].join('|'), 'i');
+
 // Returns { kind, fields, missing, notes, options } for one email.
 export function parseEmail(chunk, opts = {}) {
   const text = String(chunk || '').replace(/\r\n?/g, '\n');
@@ -182,7 +194,9 @@ export function parseEmail(chunk, opts = {}) {
   if (emails.length) f.email = emails[0];
 
   // Money: labelled amounts and "charged $X" phrases only. One distinct value -> use it; several -> ask.
-  const isRefund = /\b(?:refund(?:ed)?\b|lead credit (?:approved|issued)|credit (?:has been|was) (?:approved|issued|applied)|credits? (?:have been |were )?returned)/i.test(subj + '\n' + body);
+  // A refund email reports a refund or credit as done. Lead emails often carry a help footer ("you can request a
+  // refund within 7 days", "our refund policy"), so a bare "refund" never decides it: only these outcome phrases do.
+  const isRefund = REFUND_DONE.test(subj + '\n' + body);
   const amounts = [];
   for (const x of labelled(body, LABELS.charge.concat(isRefund ? ['refund', 'refund amount', 'credit amount', 'credited'] : []))) {
     for (const mm of x.value.matchAll(new RegExp(MONEY, 'g'))) amounts.push(parseMoney(mm[0].replace(/\s/g, '')));
