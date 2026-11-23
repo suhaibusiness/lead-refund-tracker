@@ -133,10 +133,14 @@ main { padding: 26px 0 60px; }
 
 /* empty state */
 .welcome { display: grid; grid-template-columns: 1.3fr 1fr; gap: 26px; align-items: center; }
+.welcome .lead-in { grid-column: 1; grid-row: 1; align-self: end; }
+.welcome .starts { grid-column: 2; grid-row: 1 / span 2; }
+.welcome .notes { grid-column: 1; grid-row: 2; align-self: start; }
+.welcome .notes p { margin: 0 0 8px; }
 .welcome .intro { font-size: 17px; color: var(--text-2); max-width: 56ch; }
 .starts { display: grid; gap: 10px; }
 .starts .btn { justify-content: flex-start; }
-@media (max-width: 760px) { .welcome { grid-template-columns: 1fr; } }
+@media (max-width: 760px) { .welcome { grid-template-columns: 1fr; gap: 18px; } .welcome .lead-in, .welcome .starts, .welcome .notes { grid-column: 1; grid-row: auto; } }
 
 /* ledger list */
 .toolbar { display: grid; grid-template-columns: 1fr 180px 190px; gap: 10px; margin-bottom: 12px; }
@@ -230,3 +234,15 @@ table.data td.left, table.data th.left { text-align: left; white-space: normal; 
   border-radius: 9px; font-size: 14px; z-index: 50; box-shadow: var(--shadow); max-width: calc(100vw - 32px); }
 @media (max-width: 760px) { .toast { bottom: 88px; } }
 footer.foot { color: var(--text-2); font-size: 13px; padding: 10px 0 40px; }
+
+/* One-input intake (specs/one-input-tools.md §5.2) and the "Got back so far" card (tools-offer AC-O12) */
+.drop { border: 2px dashed var(--line); border-radius: var(--radius); padding: 14px; background: var(--surface); transition: border-color .15s, background .15s; }
+.drop.over { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 6%, var(--surface)); }
+.drop label[for=paste] { display: block; margin-bottom: 8px; }
+.drop textarea { width: 100%; font-family: var(--font); font-size: 14px; }
+.drop .row { margin-top: 10px; flex-wrap: wrap; }
+.got-back { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 14px; text-decoration: none; color: inherit; background: var(--gain-soft); border-color: transparent; }
+.got-back .k { font-size: 14px; font-weight: 600; color: var(--gain); }
+.got-back .v { font-size: 28px; font-weight: 700; color: var(--gain); letter-spacing: -.01em; }
+.credit-q h3 { margin: 0 0 10px; }
+.outcome-q .tag { margin-left: 6px; vertical-align: 1px; }

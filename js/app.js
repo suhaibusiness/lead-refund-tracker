@@ -4,6 +4,8 @@ import * as R from './rules.js';
 import * as M from './maths.js';
 import { sampleData } from './sample.js';
 import { DEFAULTS, openState } from './state.js';
+import * as I from './intake.js';
+import { readDoc, emlText } from './docread.js';
 
 const KEY = 'lead-ledger-v1';
 const $ = (s, el = document) => el.querySelector(s);
@@ -92,7 +94,10 @@ function viewLedger() {
   const unsorted = state.leads.filter((l) => !l.outcome || l.outcome === 'new').length;
   const spent = state.leads.reduce((s, l) => s + (M.leadCost(l, state.settings) || 0), 0);
   const plats = [...new Set(state.leads.map((l) => l.platform))];
-  return `<div class="section-head"><div><h1>Your leads</h1>
+  const back = I.gotBack(state.leads);
+  // AC-O12: what came back, on the first screen, once there is any.
+  return `${back > 0 ? `<a class="got-back card" href="#/claims"><span class="k">Got back so far</span><span class="v num">${money(back)}</span><span class="small muted">from claims marked paid back</span></a>` : ''}
+  <div class="section-head"><div><h1>Your leads</h1>
     <p class="muted">${state.leads.length} lead${state.leads.length === 1 ? '' : 's'} · ${money(spent)} in lead charges${unsorted ? ` · <strong>${unsorted} still to sort</strong>` : ''}</p></div>
     <a class="btn primary" href="#/add">Add leads</a></div>
   <div class="toolbar">
@@ -149,15 +154,22 @@ function readLeadForm(form) {
 
 function welcome() {
   return `<section class="welcome card" style="padding:28px">
-    <div><h1>Every paid lead in one place. And the ones you can claim back.</h1>
-      <p class="intro">Paste the lead and charge emails from Angi, Thumbtack, Google Local Services, Bark, hipages or Yelp. Mark what happened to each one. Lead Refund Tracker checks each platform’s own written rules, tells you which leads you can still claim back and by when, writes the claim for you, and shows what a won job really costs before you renew.</p>
-      <p class="privacy"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 018 0v4"/></svg><span>No account. Your leads stay in this browser, and you send every claim yourself.</span></p></div>
-    <div class="starts">
-      <a class="btn primary lg" href="#/add" data-mode="emails">Paste lead emails</a>
-      <a class="btn lg" href="#/add" data-mode="csv">Import a CSV export</a>
-      <a class="btn lg" href="#/add" data-mode="manual">Add one by hand</a>
-      <button class="btn lg ghost" data-act="sample">Try it with sample leads</button>
+    <div class="lead-in"><h1>Every paid lead in one place. And the ones you can claim back.</h1>
+      <p class="intro">Paste or drop your lead emails from Angi, Thumbtack, Google Local Services, Bark, hipages or Yelp. We read them, ask only what they don’t say, and show which leads you can still claim back, by when, with the claim written for you.</p></div>
+    <div class="starts">${intakeBox()}
+      <div class="row"><a class="btn ghost" href="#/add" data-mode="manual">Add one by hand</a><button class="btn ghost" data-act="sample">Try it with sample leads</button></div>
+    </div>
+    <div class="notes"><p class="privacy"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 018 0v4"/></svg><span>No account. Files you drop here are read in this browser. Nothing is uploaded. Screenshots are read in this browser by code served from this site. They are not uploaded anywhere. You send every claim yourself.</span></p>
+      <p class="small muted">Rules read from each platform’s own help pages on ${esc(R.longDate(R.READ))}: <a href="#/rules">see the rules</a>.</p>
     </div></section>`;
+}
+// The one box (one-input spec §5.2): paste emails, or drop .eml files, screenshots or a CSV export.
+function intakeBox() {
+  return `<div class="drop" id="lead-drop"><label for="paste"><strong>Paste or drop your lead emails</strong></label>
+    <textarea id="paste" rows="6" placeholder="Paste whole emails, or drop .eml files, screenshots of them, or a CSV export here">${esc(ui.paste)}</textarea>
+    <div class="row"><button class="btn primary" data-act="read-emails">Read these</button>
+      <label class="btn" for="lead-files">Choose files</label><input type="file" id="lead-files" class="sr-only" multiple accept=".eml,message/rfc822,.txt,text/plain,.csv,text/csv,image/*,.png,.jpg,.jpeg,.webp,.heic,.heif"></div>
+    <p class="hint" id="intake-status" aria-live="polite">Emails, .eml files, screenshots or a CSV. Anything we can’t read is shown to you, not guessed.</p></div>`;
 }
 
 // ---------- add ----------
@@ -165,10 +177,9 @@ function viewAdd() {
   const m = ui.addMode;
   const seg = [['emails', 'Paste emails'], ['csv', 'Import CSV'], ['manual', 'Add by hand']].map(([k, v]) => `<button type="button" data-mode="${k}" aria-pressed="${m === k}">${v}</button>`).join('');
   let body = '';
-  if (m === 'emails') body = `<div class="card"><label for="paste">Paste one or more lead, charge or refund emails</label>
-      <textarea id="paste" rows="10" placeholder="From: Angi Leads &lt;leads@angi.com&gt;&#10;Date: Tue, 20 Oct 2026 08:41&#10;Subject: New lead from Dana Whitfield&#10;&#10;Customer: Dana Whitfield&#10;Service: Fence Repair&#10;Lead cost: $38.50">${esc(ui.paste)}</textarea>
-      <p class="hint">Paste whole emails, headers included if you can. Start each one with its “From:” line and we’ll split them. Anything we can’t read is shown to you, not guessed.</p>
-      <div class="row"><button class="btn primary" data-act="read-emails">Read these emails</button><button class="btn" data-act="sample-emails">Use the sample emails</button></div></div>
+  if (m === 'emails') body = `<div class="card">${intakeBox()}
+      <p class="hint">Paste whole emails, headers included if you can. Start each one with its “From:” line and we’ll split them.</p>
+      <div class="row"><button class="btn" data-act="sample-emails">Use the sample emails</button></div></div>
       ${ui.pending ? reviewHtml() : ''}`;
   else if (m === 'csv') body = csvHtml();
   else body = `<form class="card" id="manual-form"><h2>Add a lead by hand</h2>${leadFields({ platform: 'angi', date: todayISO() }, 'm-')}
@@ -194,15 +205,19 @@ function reviewHtml() {
   const items = ui.pending.items;
   if (!items.length) return '<div class="notice warn">There was nothing to read in that paste.</div>';
   const n = items.filter((x) => x.include).length;
+  const cq = I.creditQuestions(items, state.settings);
+  const credit = cq.length ? `<div class="card credit-q"><h3>One thing per platform</h3>${cq.map((p) => `<div class="field"><label for="cp-${p}">What does one ${esc(R.PLATFORMS[p].name)} credit cost you? (${esc(cur())})</label>
+      <input type="number" id="cp-${p}" data-credit="${p}" step="any" min="0" inputmode="decimal" value=""><div class="hint">Asked once. It turns credits into money for this and every later ${esc(R.PLATFORMS[p].short)} lead; change it in Settings.</div></div>`).join('')}</div>` : '';
   return `<h2 style="margin-top:22px">Check what we found</h2>
-    <p class="muted">Red boxes are things we couldn’t find. Fill them in or leave them blank; untick anything you don’t want.</p>
-    <div class="review">${items.map((it, i) => reviewItem(it, i)).join('')}</div>
+    <p class="muted">Red boxes are the only things we couldn’t settle from the emails. Untick anything you don’t want.</p>
+    ${credit}<div class="review">${items.map((it, i) => reviewItem(it, i)).join('')}</div>
     <div class="row end" style="margin-top:14px"><button class="btn" data-act="clear-pending">Start again</button><button class="btn primary" data-act="add-pending" ${n ? '' : 'disabled'}>Add ${n} to the ledger</button></div>`;
 }
 function reviewItem(it, i) {
   const f = it.fields;
+  const asks = I.asksOf(it);
   const cell = (k, input) => {
-    const miss = (it.missing.includes(k) || it.options[k]) && (f[k] === '' || f[k] === null || f[k] === undefined);
+    const miss = asks.includes(k) && (f[k] === '' || f[k] === null || f[k] === undefined);
     const opts = it.options[k] ? `<div class="opts">${it.options[k].map((o) => `<button type="button" class="btn sm" data-pick="${i}" data-k="${k}" data-v="${esc(o)}">${esc(k === 'charge' ? money(o) : k === 'date' ? R.longDate(o) : k === 'platform' ? R.PLATFORMS[o].short : o)}</button>`).join('')}</div>` : '';
     return `<div class="${miss ? 'miss' : ''}"><label for="r${i}-${k}">${k === 'charge' ? `Charge (${esc(cur())})` : FIELD_LABEL[k]}</label>${input}${miss ? `<div class="why">${it.options[k] ? 'Pick one:' : 'Couldn’t find this'}</div>` : ''}${opts}</div>`;
   };
@@ -215,11 +230,18 @@ function reviewItem(it, i) {
     extra = m ? `<div class="notice">Matches your ${R.PLATFORMS[m.platform].short} lead from ${esc(m.customer)} on ${R.longDate(m.date)}. Adding this marks that claim as paid back${f.charge ? ` (${money(f.charge)})` : ''}.</div>`
       : '<div class="notice warn">No matching lead in your ledger yet. Add the lead first, then paste this again.</div>';
   } else if (it.dupe) extra = '<div class="notice warn">This looks like it’s already in your ledger, so it’s unticked.</div>';
+  if (it.ocr) extra += '<div class="notice warn"><strong>Our guess: check it.</strong> Read from a screenshot: check each value before you add it.</div>';
+  // AC-L2: the outcome comes from the owner's own note when there is one; otherwise one tap, only here.
+  const outcome = it.kind !== 'lead' ? '' : it.noted
+    ? `<p class="small" style="margin:8px 0 0">From your note: <strong>${esc(R.OUTCOME_LABEL[f.outcome])}</strong></p>`
+    : `<div class="field outcome-q" style="margin-top:8px"><label for="r${i}-outcome">What happened with this lead? <span class="tag info">Only you know this</span></label>
+      <select id="r${i}-outcome" data-r="${i}" data-k="outcome">${R.OUTCOMES.map(([k, v]) => `<option value="${k}" ${(f.outcome || 'new') === k ? 'selected' : ''}>${esc(v)}</option>`).join('')}</select></div>`;
   const fields = it.kind === 'refund' ? ['platform', 'date', 'customer', 'charge'] : ['platform', 'date', 'customer', 'job', 'phone', 'charge', 'credits'];
   return `<div class="ritem ${it.include ? '' : 'skip'}">
     <div class="head"><strong>${i + 1}. ${head}${f.status ? ` <span class="small muted" style="font-weight:400">· platform says ${esc(f.status)}</span>` : ''}</strong><label class="check" style="margin:0"><input type="checkbox" data-inc="${i}" ${it.include ? 'checked' : ''}> Add this</label></div>
     ${extra}
     <div class="grid">${fields.map((k) => (k === 'platform' ? cell(k, plat) : cell(k, inp(k, k === 'date' ? 'date' : ['charge', 'credits'].includes(k) ? 'number' : 'text')))).join('')}</div>
+    ${outcome}
     ${it.notes.length ? `<p class="small muted" style="margin:8px 0 0">${it.notes.map(esc).join(' ')}</p>` : ''}
     <details class="raw"><summary>Show the email</summary><pre>${esc(it.raw)}</pre></details></div>`;
 }
@@ -256,7 +278,7 @@ function viewClaims() {
   const tracked = by('tracked'), feedback = by('feedback'), auto = by('auto'), late = by('late'), blocked = by('blocked');
   const unconf = by('unconfirmed').filter((x) => R.JUNK.includes(x.l.outcome));
   const worth = (xs) => xs.reduce((s, x) => s + (M.leadCost(x.l, state.settings) || 0), 0);
-  const back = tracked.filter((x) => x.l.claim.state === 'won').reduce((s, x) => s + (Number(x.l.claim.amount) || 0), 0);
+  const back = I.gotBack(state.leads);
   const waiting = tracked.filter((x) => x.l.claim.state === 'sent').length;
   const soonest = open.concat(check)[0];
   let html = `<div class="section-head"><div><h1>Claims</h1><p class="muted">Leads that fit a platform’s own written credit or refund rules, inside its time limit. You send each claim yourself.</p></div></div>
@@ -430,11 +452,38 @@ function addLeads(list) {
     charge: l.charge ?? null, credits: l.credits ?? null, status: l.status || '', outcome: l.outcome || 'new', value: l.value ?? null, note: l.note || '', claim: null, added: todayISO() });
   save();
 }
-function readPaste(text) {
-  const items = P.parseEmails(text, { dateOrder: state.settings.dateOrder });
-  ui.pending = { items: items.map((it) => ({ ...it, include: it.kind === 'refund' ? !!matchLead(it.fields) : !alreadyIn(it.fields), dupe: it.kind === 'lead' && alreadyIn(it.fields) })) };
+// sources: [{ text, ocr }]: the paste, each .eml or text file, each screenshot read by OCR.
+function readPaste(text, sources = [{ text, ocr: false }]) {
+  const items = sources.flatMap((s) => P.parseEmails(s.text, { dateOrder: state.settings.dateOrder }).map((it) => ({ ...it, ocr: s.ocr })));
+  ui.pending = { items: items.map((it) => {
+    const outcome = I.outcomeOf(it);
+    return { ...it, fields: { ...it.fields, outcome: outcome || 'new' }, noted: !!outcome,
+      include: it.kind === 'refund' ? !!matchLead(it.fields) : !alreadyIn(it.fields), dupe: it.kind === 'lead' && alreadyIn(it.fields) };
+  }) };
+  ui.addMode = 'emails';
+  if (route() !== 'add') location.hash = '#/add';
   render();
   const r = $('.review'); if (r) r.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+const isImage = (f) => /^image\//.test(f.type) || /\.(png|jpe?g|webp|gif|bmp|heic|heif)$/i.test(f.name || '');
+const READ_ERR = { heic: 'This photo type can’t be read here. Take a screenshot of it and drop that instead.', unreadable: 'We couldn’t read this file. Drop a clearer screenshot, or paste the email.', reader: 'The screenshot reader didn’t load. Check your connection and try again.' };
+// One box, any of: pasted emails, .eml or text files, screenshots (read by OCR here), or a CSV export.
+async function readInputs(fileList, pasted = '') {
+  const files = [...(fileList || [])];
+  const st = $('#intake-status');
+  const csv = files.find((f) => /\.csv$/i.test(f.name) || f.type === 'text/csv');
+  if (csv) { ui.addMode = 'csv'; location.hash = '#/add'; loadCsv(await csv.text(), csv.name); return; }
+  const sources = pasted.trim() ? [{ text: pasted, ocr: false }] : [];
+  const errors = [];
+  for (const f of files) {
+    if (st) st.textContent = `Reading ${f.name}…${isImage(f) ? ' A screenshot takes 5 to 20 seconds the first time.' : ''}`;
+    if (isImage(f)) { try { const r = await readDoc(f); sources.push({ text: r.text, ocr: true }); } catch (e) { errors.push(`${f.name}: ${READ_ERR[e && e.kind] || READ_ERR.unreadable}`); } }
+    else if (/\.(eml|txt|msg)$/i.test(f.name) || /^text\/|message\/rfc822/.test(f.type)) sources.push({ text: emlText(await f.text()), ocr: false });
+    else errors.push(`${f.name}: drop an email (.eml), a screenshot or a CSV export.`);
+  }
+  if (errors.length) toast(errors.join(' '));
+  if (!sources.length) { if (st) st.textContent = errors.join(' ') || 'Nothing to read yet.'; return; }
+  readPaste(sources.map((s) => s.text).join('\n\n'), sources);
 }
 async function fetchText(url) { const r = await fetch(url, { cache: 'no-store' }); if (!r.ok) throw new Error(url); return r.text(); }
 const SAMPLE_EMAILS = ['angi-lead', 'thumbtack-lead', 'thumbtack-refund', 'lsa-message-lead', 'lsa-missed-call', 'bark-lead', 'hipages-lead', 'yelp-quote-request', 'problem-two-amounts', 'problem-ambiguous-date'];
@@ -467,7 +516,7 @@ view.addEventListener('click', async (e) => {
   else if (act === 'edit') { ui.editing = ui.editing === id ? null : id; rerenderRow(id, ui.editing ? '[name=customer]' : '[data-act=edit]'); }
   else if (act === 'delete') { if (!confirm('Delete this lead?')) return; state.leads = state.leads.filter((l) => l.id !== id); ui.editing = null; save(); render(); toast('Lead deleted.'); }
   else if (act === 'mark-dupe') { setLead(id, { outcome: 'duplicate' }); rerenderRow(id, '[data-f=outcome]'); toast('Marked as a duplicate.'); }
-  else if (act === 'read-emails') { const t = $('#paste').value; if (!t.trim()) { toast('Paste at least one email first.'); return; } readPaste(t); }
+  else if (act === 'read-emails') { const t = $('#paste').value; if (!t.trim()) { toast('Paste at least one email first, or choose files.'); return; } ui.paste = t; readPaste(t); }
   else if (act === 'sample-emails') {
     try { const t = (await Promise.all(SAMPLE_EMAILS.map((n) => fetchText(`fixtures/emails/${n}.eml`)))).join('\n\n'); ui.paste = t; readPaste(t); }
     catch (err) { toast('Couldn’t load the sample emails. Open the app through server.mjs.'); }
@@ -478,6 +527,8 @@ view.addEventListener('click', async (e) => {
     const leads = take.filter((x) => x.kind === 'lead'), refunds = take.filter((x) => x.kind === 'refund');
     const bad = leads.filter((x) => !x.fields.platform || !x.fields.date);
     if (bad.length) { toast(`Add a platform and date to item ${ui.pending.items.indexOf(bad[0]) + 1} first, or untick it.`); return; }
+    // Credit prices answered in the review are saved once per platform (AC-L3).
+    document.querySelectorAll('[data-credit]').forEach((el) => { if (Number(el.value) > 0) state.settings.creditPrice = { ...state.settings.creditPrice, [el.dataset.credit]: Number(el.value) }; });
     addLeads(leads.map((x) => x.fields));
     let paid = 0;
     for (const r of refunds) { const m = matchLead(r.fields); if (m) { m.claim = { state: 'won', on: r.fields.date || todayISO(), amount: r.fields.charge ?? M.leadCost(m, state.settings) }; paid++; } }
@@ -517,10 +568,11 @@ view.addEventListener('change', async (e) => {
     it.fields[k] = ['charge', 'credits'].includes(k) ? (t.value === '' ? null : Number(t.value)) : t.value;
     if (it.fields[k] !== '' && it.fields[k] !== null) delete it.options[k];
     if (k === 'platform' || k === 'customer') { if (it.kind === 'refund') it.include = !!matchLead(it.fields); render(); }
-    else t.closest('div').classList.toggle('miss', (it.missing.includes(k) || !!it.options[k]) && t.value === '');
+    else t.closest('div').classList.toggle('miss', I.asksOf(it).includes(k) && t.value === '');
     return;
   }
   if (t.dataset.inc !== undefined) { ui.pending.items[+t.dataset.inc].include = t.checked; render(); return; }
+  if (t.id === 'lead-files') { const fl = [...t.files]; t.value = ''; readInputs(fl, ''); return; }
   if (t.id === 'f-platform') { ui.filter.platform = t.value; ui.shown = 60; render(); return; }
   if (t.id === 'f-outcome') { ui.filter.outcome = t.value; ui.shown = 60; render(); return; }
   if (t.id === 'period') { ui.period = t.value; render(); return; }
@@ -557,6 +609,15 @@ view.addEventListener('submit', (e) => {
   }
 });
 document.addEventListener('click', (e) => { const m = e.target.closest('a[data-mode]'); if (m) ui.addMode = m.dataset.mode; }, true);
+const leadDrop = (e) => e.target.closest && e.target.closest('#lead-drop');
+document.addEventListener('dragover', (e) => { const d = leadDrop(e); if (d) { e.preventDefault(); d.classList.add('over'); } });
+document.addEventListener('dragleave', (e) => { const d = leadDrop(e); if (d) d.classList.remove('over'); });
+document.addEventListener('drop', (e) => {
+  const d = leadDrop(e); if (!d) return;
+  e.preventDefault(); d.classList.remove('over');
+  const text = e.dataTransfer.files.length ? '' : e.dataTransfer.getData('text/plain');
+  readInputs(e.dataTransfer.files, text);
+});
 
 $('#file-json').addEventListener('change', async (e) => {
   const file = e.target.files[0]; e.target.value = ''; if (!file) return;
