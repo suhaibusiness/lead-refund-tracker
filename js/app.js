@@ -98,7 +98,8 @@ function viewLedger() {
   // AC-O12: what came back, on the first screen, once there is any.
   return `${back > 0 ? `<a class="got-back card" href="#/claims"><span class="k">Got back so far</span><span class="v num">${money(back)}</span><span class="small muted">from claims marked paid back</span></a>` : ''}
   <div class="section-head"><div><h1>Your leads</h1>
-    <p class="muted">${state.leads.length} lead${state.leads.length === 1 ? '' : 's'} · ${money(spent)} in lead charges${unsorted ? ` · <strong>${unsorted} still to sort</strong>` : ''}</p></div>
+    <p class="muted">${state.leads.length} lead${state.leads.length === 1 ? '' : 's'} · ${money(spent)} in lead charges${unsorted ? ` · <strong>${unsorted} still to sort</strong>` : ''}</p>
+    <p class="small muted">Rules read from each platform’s own help pages on ${esc(R.longDate(R.READ))}: <a href="#/rules">see the rules</a>.</p></div>
     <a class="btn primary" href="#/add">Add leads</a></div>
   <div class="toolbar">
     <div class="search"><label class="sr-only" for="f-q">Search</label><input type="search" id="f-q" placeholder="Search name, job, phone or note" value="${esc(f.q)}"></div>
